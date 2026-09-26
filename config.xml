@@ -46,6 +46,7 @@
     <icon src="res/icon.png" />
 
     <platform name="android">
+        <!-- Local HTTPS-style WebView origin -->
         <preference name="scheme" value="https" />
         <preference name="hostname" value="localhost" />
         <preference name="loadUrlTimeoutValue" value="120000" />
@@ -57,14 +58,14 @@
         <icon src="res/icon.png" density="xxhdpi" />
         <icon src="res/icon.png" density="xxxhdpi" />
 
-        <!-- Permissions required by Scanly AI -->
+        <!-- Permissions actually needed by Scanly AI:
+             Internet: Gemini/API + online resources
+             Camera: document scanning/camera capture
+             Images: selected through the Android/WebView file picker -->
         <config-file target="AndroidManifest.xml" parent="/*"
                      xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.INTERNET" />
             <uses-permission android:name="android.permission.CAMERA" />
-            <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
-                             android:maxSdkVersion="32" />
         </config-file>
     </platform>
 
