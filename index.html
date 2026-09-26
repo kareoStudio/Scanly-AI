@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1023,6 +1024,11 @@
 
     <!-- Toast Notification Container -->
     <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- ============================================== -->
+    <!-- CRITICAL FIX: Cordova JS must be injected here -->
+    <!-- ============================================== -->
+    <script src="cordova.js"></script>
 
     <script>
         // Core state
@@ -2084,7 +2090,7 @@ Rules:
                     let output = data?.candidates?.[0]?.content?.parts?.[0]?.text;
                     if (!output) continue;
                     output = output.trim();
-                    if (output.startsWith('```html')) output = output.replace(/^```html\s*/i, '').replace(/\s*```$/, '');
+                    if (output.startsWith('```html')) output = output.replace(/^Math.random().toString(36).substring(2, 15)html\s*/i, '').replace(/\s*```$/, '');
                     else if (output.startsWith('```')) output = output.replace(/^```\s*/, '').replace(/\s*```$/, '');
                     pageEditor.innerHTML = sanitizeEditorHtml(output);
                 }
@@ -2164,7 +2170,7 @@ Rules:
             if (btn) {
                 btn.disabled = true;
                 btn.classList.add('opacity-70', 'cursor-wait');
-                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-lg"></i><span>Preparing download...</span>';
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-lg"></i><span>Preparing file...</span>';
             }
             try {
                 if (selectedFormat === 'pdf') await exportToPDF();
@@ -2181,11 +2187,11 @@ Rules:
         }
 
         // ==========================================
-        // DEVICE FILE SAVING LOGIC
+        // DEVICE FILE SAVING LOGIC (All Formats)
         // ==========================================
         async function saveFileToDevice(blob, fileName) {
-            // Android Cordova APK
-            if (window.cordova?.plugins?.scanlyStorage) {
+            // Android Cordova APK check
+            if (window.cordova && window.cordova.plugins && window.cordova.plugins.scanlyStorage) {
                 const base64 = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
 
@@ -2208,8 +2214,9 @@ Rules:
                 return new Promise((resolve, reject) => {
                     const plugin = window.cordova.plugins.scanlyStorage;
                     
-                    // Call savePdf (as supplied) or saveFile if your plugin has a generic one.
-                    const saveMethod = plugin.saveFile || plugin.savePdf;
+                    // We use the same save method (savePdf / saveFile) for DOCX and TXT as well,
+                    // because the Java plugin simply saves the base64 payload to a file.
+                    const saveMethod = plugin.savePdf || plugin.saveFile;
                     
                     if (saveMethod) {
                         saveMethod.call(
@@ -2226,7 +2233,7 @@ Rules:
                 });
             }
 
-            // Normal browser fallback
+            // Normal browser fallback (If not in the APK)
             downloadBlob(blob, fileName);
         }
 
@@ -2311,7 +2318,7 @@ Rules:
                 showToast(`PDF saved successfully! 📄`, 'success');
             } catch (err) {
                 console.error('PDF export error:', err);
-                showToast('PDF download failed: ' + (err?.message || 'unknown error'), 'error');
+                showToast('PDF save failed. ' + (err?.message || ''), 'error');
             } finally {
                 host.remove();
                 setEditorZoom(oldZoom);
@@ -2331,7 +2338,6 @@ Rules:
             }
 
             const clone = editor.cloneNode(true);
-            // Header, footer, title and editing controls are visible only in the editor.
             clone.querySelectorAll('.page-header, .page-footer, .image-handle, .image-delete, .image-caption').forEach(el => el.remove());
             clone.querySelectorAll('.editor-image-wrapper').forEach(w => {
                 w.style.outline = 'none';
@@ -2359,7 +2365,7 @@ Rules:
                 showToast('.docx file saved successfully! 📝', 'success');
             } catch (err) {
                 console.error('DOCX export error:', err);
-                showToast('DOCX generation failed. Please check the browser console.', 'error');
+                showToast('DOCX generation failed. ' + err.message, 'error');
             }
         }
 
