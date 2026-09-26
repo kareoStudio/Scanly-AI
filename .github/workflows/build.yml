@@ -30,21 +30,21 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
 
-      - name: Install Android Build Tools 34.0.0
+      - name: Install Android SDK Platform and Build Tools
         run: |
-          export ANDROID_HOME=$ANDROID_SDK_ROOT
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Install Gradle 8.0
+      - name: Install Gradle 8.7
         run: |
           sudo rm -rf /usr/share/gradle-*
-          wget -q https://services.gradle.org/distributions/gradle-8.0-bin.zip
-          unzip -q gradle-8.0-bin.zip
-          sudo mv gradle-8.0 /opt/gradle-8.0
-          sudo ln -sf /opt/gradle-8.0/bin/gradle /usr/local/bin/gradle
+          wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          unzip -q gradle-8.7-bin.zip
+          sudo mv gradle-8.7 /opt/gradle-8.7
+          sudo ln -sf /opt/gradle-8.7/bin/gradle /usr/local/bin/gradle
           gradle --version
 
       - name: Install Cordova
