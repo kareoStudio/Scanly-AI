@@ -71,7 +71,6 @@ jobs:
           cordova platform add android@13.0.0
 
           cordova plugin add cordova-plugin-inappbrowser
-          cordova plugin add cordova-plugin-network-information
           cordova plugin add cordova-plugin-statusbar
           cordova plugin add cordova-plugin-file
           cordova plugin add cordova-plugin-filepath
