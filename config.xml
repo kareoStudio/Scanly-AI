@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<widget id="com.kareostudio.scanlyai" version="1.0.0"
+        xmlns="http://www.w3.org/ns/widgets"
+        xmlns:cdv="http://cordova.apache.org/ns/1.0">
+
+    <name>Scanly AI</name>
+    <description>Scanly AI - AI Document Scanner, Editor and Exporter</description>
+    <author email="dev@kareostudio.com" href="https://kareostudio.com">Kareo Studio</author>
+
+    <content src="index.html" />
+    <access origin="*" />
+
+    <!-- Network & external navigation -->
+    <allow-navigation href="*" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+    <allow-intent href="tel:*" />
+    <allow-intent href="mailto:*" />
+
+    <!-- Android SDK -->
+    <preference name="android-minSdkVersion" value="24" />
+    <preference name="android-targetSdkVersion" value="34" />
+    <preference name="android-compileSdkVersion" value="34" />
+    <preference name="AndroidXEnabled" value="true" />
+
+    <!-- WebView / mobile behavior -->
+    <preference name="Fullscreen" value="false" />
+    <preference name="Orientation" value="default" />
+    <preference name="DisallowOverscroll" value="true" />
+    <preference name="EnableViewportScale" value="true" />
+    <preference name="BackgroundColor" value="0xFFF8FAFC" />
+    <preference name="KeepRunning" value="true" />
+    <preference name="AllowInlineMediaPlayback" value="true" />
+
+    <!-- Status bar -->
+    <preference name="StatusBarOverlaysWebView" value="false" />
+    <preference name="StatusBarBackgroundColor" value="#0F172A" />
+    <preference name="StatusBarStyle" value="lightcontent" />
+
+    <!-- Splash screen -->
+    <preference name="AndroidWindowSplashScreenAnimatedIcon" value="res/icon.png" />
+    <preference name="AndroidWindowSplashScreenBackground" value="#FFFFFF" />
+    <preference name="SplashScreenDelay" value="1200" />
+
+    <!-- App icon -->
+    <icon src="res/icon.png" />
+
+    <platform name="android">
+        <preference name="scheme" value="https" />
+        <preference name="hostname" value="localhost" />
+        <preference name="loadUrlTimeoutValue" value="120000" />
+
+        <icon src="res/icon.png" density="ldpi" />
+        <icon src="res/icon.png" density="mdpi" />
+        <icon src="res/icon.png" density="hdpi" />
+        <icon src="res/icon.png" density="xhdpi" />
+        <icon src="res/icon.png" density="xxhdpi" />
+        <icon src="res/icon.png" density="xxxhdpi" />
+
+        <!-- Permissions required by Scanly AI -->
+        <config-file target="AndroidManifest.xml" parent="/*"
+                     xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.CAMERA" />
+            <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+                             android:maxSdkVersion="32" />
+        </config-file>
+    </platform>
+
+    <!-- Plugins -->
+    <plugin name="cordova-plugin-inappbrowser" source="npm" />
+    <plugin name="cordova-plugin-network-information" source="npm" />
+    <plugin name="cordova-plugin-statusbar" source="npm" />
+    <plugin name="cordova-plugin-file" source="npm" />
+    <plugin name="cordova-plugin-filepath" source="npm" />
+    <plugin name="cordova-plugin-filechooser" source="npm" />
+    <plugin name="cordova-plugin-android-permissions" source="npm" />
+
+</widget>
