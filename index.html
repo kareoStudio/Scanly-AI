@@ -2169,7 +2169,7 @@ Rules:
             try {
                 if (selectedFormat === 'pdf') await exportToPDF();
                 else if (selectedFormat === 'docx') await exportToDocx();
-                else if (selectedFormat === 'txt') exportToTxt();
+                else if (selectedFormat === 'txt') await exportToTxt();
             } finally {
                 downloadInProgress = false;
                 if (btn) {
@@ -2178,6 +2178,56 @@ Rules:
                     if (original) btn.innerHTML = original;
                 }
             }
+        }
+
+        // ==========================================
+        // DEVICE FILE SAVING LOGIC
+        // ==========================================
+        async function saveFileToDevice(blob, fileName) {
+            // Android Cordova APK
+            if (window.cordova?.plugins?.scanlyStorage) {
+                const base64 = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+
+                    reader.onloadend = () => {
+                        try {
+                            const result = String(reader.result || '');
+                            resolve(result.includes(',') ? result.split(',')[1] : result);
+                        } catch (e) {
+                            reject(e);
+                        }
+                    };
+
+                    reader.onerror = () => {
+                        reject(reader.error || new Error('Could not read file data.'));
+                    };
+
+                    reader.readAsDataURL(blob);
+                });
+
+                return new Promise((resolve, reject) => {
+                    const plugin = window.cordova.plugins.scanlyStorage;
+                    
+                    // Call savePdf (as supplied) or saveFile if your plugin has a generic one.
+                    const saveMethod = plugin.saveFile || plugin.savePdf;
+                    
+                    if (saveMethod) {
+                        saveMethod.call(
+                            plugin,
+                            base64,
+                            fileName,
+                            () => resolve(),
+                            error => reject(new Error(error || 'Android could not save the file.'))
+                        );
+                    } else {
+                        downloadBlob(blob, fileName);
+                        resolve();
+                    }
+                });
+            }
+
+            // Normal browser fallback
+            downloadBlob(blob, fileName);
         }
 
         // 1. PDF Export
@@ -2256,8 +2306,9 @@ Rules:
                     pdf.addImage(imgData, 'JPEG', 0, 0, pw, ph, undefined, 'FAST');
                 }
 
-                pdf.save(fileName);
-                showToast(`PDF downloaded — ${pages.length} page(s)! 📄`, 'success');
+                const pdfBlob = pdf.output('blob');
+                await saveFileToDevice(pdfBlob, fileName);
+                showToast(`PDF saved successfully! 📄`, 'success');
             } catch (err) {
                 console.error('PDF export error:', err);
                 showToast('PDF download failed: ' + (err?.message || 'unknown error'), 'error');
@@ -2303,8 +2354,9 @@ Rules:
                     font: 'Arial', fontSize: 22, decodeUnicode: true
                 });
                 const blob = result instanceof Blob ? result : new Blob([result], { type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-                downloadBlob(blob, fileName);
-                showToast('.docx file downloaded successfully! 📝', 'success');
+                
+                await saveFileToDevice(blob, fileName);
+                showToast('.docx file saved successfully! 📝', 'success');
             } catch (err) {
                 console.error('DOCX export error:', err);
                 showToast('DOCX generation failed. Please check the browser console.', 'error');
@@ -2321,15 +2373,21 @@ Rules:
         }
 
         // 3. Plain Text Export
-        function exportToTxt() {
+        async function exportToTxt() {
             const editor = document.getElementById('documentPages');
             let fileName = document.getElementById('finalFileNameInput').value.trim() || 'Scanned_Document';
             if (!fileName.endsWith('.txt')) fileName += '.txt';
 
             const plainText = getPageContents().map(page => page.querySelector('.page-content')?.innerText || '').join('\n\n');
             const blob = new Blob([plainText], { type: 'text/plain;charset=utf-8' });
-            downloadBlob(blob, fileName);
-            showToast("Text file downloaded successfully!", "success");
+            
+            try {
+                await saveFileToDevice(blob, fileName);
+                showToast("Text file saved successfully!", "success");
+            } catch (err) {
+                console.error('TXT export error:', err);
+                showToast('Text file saving failed.', 'error');
+            }
         }
 
         function toggleHelpModal() {
