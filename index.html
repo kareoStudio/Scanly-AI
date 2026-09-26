@@ -1243,14 +1243,63 @@
             if (added) showToast(`${added} image(s) added to the queue`, 'success');
         }
 
-        function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(String(reader.result).split(',')[1]);
-                reader.onerror = reject;
-            });
-        }
+        // REPLACE THIS FUNCTION IN YOUR CODE:
+// function fileToBase64(file) { ... } 
+// WITH THIS UPDATED FUNCTION:
+
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                
+                // Max width/height limit (compress if larger)
+                const MAX_SIZE = 1200;
+                
+                if (width > height) {
+                    if (width > MAX_SIZE) {
+                        height *= MAX_SIZE / width;
+                        width = MAX_SIZE;
+                    }
+                } else {
+                    if (height > MAX_SIZE) {
+                        width *= MAX_SIZE / height;
+                        height = MAX_SIZE;
+                    }
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Convert back to Base64 (0.7 quality for JPEG compression)
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                const base64Data = dataUrl.split(',')[1]; 
+                
+                resolve(base64Data);
+            };
+            
+            img.onerror = (error) => {
+                reject(error);
+            };
+        };
+        
+        reader.onerror = (error) => {
+            reject(error);
+        };
+    });
+}
+
 
         function renderImageList() {
             const container = document.getElementById('imagesContainer');
@@ -2189,49 +2238,50 @@ Rules:
         // ==========================================
         // DEVICE FILE SAVING LOGIC (All Formats)
         // ==========================================
-        async function saveFileToDevice(blob, fileName) {
-            // Android Cordova APK check
-            if (window.cordova && window.cordova.plugins && window.cordova.plugins.scanlyStorage) {
-                const base64 = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
+        // REPLACE THIS FUNCTION:
+// async function saveFileToDevice(blob, fileName) { ... }
+// WITH THIS UPDATED FUNCTION:
 
-                    reader.onloadend = () => {
-                        try {
-                            const result = String(reader.result || '');
-                            resolve(result.includes(',') ? result.split(',')[1] : result);
-                        } catch (e) {
-                            reject(e);
-                        }
-                    };
+async function saveFileToDevice(blob, fileName) {
+    
+    // First attempt: If running inside a Cordova wrapper with your custom plugin
+    if (window.cordova && window.cordova.plugins && window.cordova.plugins.scanlyStorage) {
+        try {
+            const base64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const result = String(reader.result || '');
+                    resolve(result.includes(',') ? result.split(',')[1] : result);
+                };
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(blob);
+            });
 
-                    reader.onerror = () => {
-                        reject(reader.error || new Error('Could not read file data.'));
-                    };
-
-                    reader.readAsDataURL(blob);
+            const plugin = window.cordova.plugins.scanlyStorage;
+            const saveMethod = plugin.savePdf || plugin.saveFile;
+            
+            if (saveMethod) {
+                await new Promise((resolve, reject) => {
+                    saveMethod.call(
+                        plugin,
+                        base64,
+                        fileName,
+                        () => resolve(),
+                        (error) => reject(new Error(error || 'Android plugin failed.'))
+                    );
                 });
-
-                return new Promise((resolve, reject) => {
-                    const plugin = window.cordova.plugins.scanlyStorage;
-                    
-                    // We use the same save method (savePdf / saveFile) for DOCX and TXT as well,
-                    // because the Java plugin simply saves the base64 payload to a file.
-                    const saveMethod = plugin.savePdf || plugin.saveFile;
-                    
-                    if (saveMethod) {
-                        saveMethod.call(
-                            plugin,
-                            base64,
-                            fileName,
-                            () => resolve(),
-                            error => reject(new Error(error || 'Android could not save the file.'))
-                        );
-                    } else {
-                        downloadBlob(blob, fileName);
-                        resolve();
-                    }
-                });
+                return; // Exit if successful
             }
+        } catch (e) {
+            console.warn("Cordova plugin save failed, falling back to browser download:", e);
+            // Fallback to normal download if plugin fails
+        }
+    }
+
+    // Second attempt: Normal browser download (Works in Android WebView if DownloadListener is set in Java)
+    downloadBlob(blob, fileName);
+}
+
 
             // Normal browser fallback (If not in the APK)
             downloadBlob(blob, fileName);
