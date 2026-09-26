@@ -1036,7 +1036,10 @@
         let uploadedFiles = []; // { id, file, base64, previewUrl, name, size }
         let currentStream = null;
         let selectedFormat = 'pdf'; // 'pdf', 'docx', 'txt'
-        const apiKey = "AQ.Ab8RN6KZ4OyI7ejGS6chu-I-_HEMs9KzEOIQlXGYaepXZeWPyg"; // Canvas provides runtime API key automatically
+        // SECURITY: Asli Gemini key ab yahan nahi hai. Saari AI calls is Apps Script
+        // proxy URL se hoti hain, jo key ko server-side chhupata hai.
+        // Apna deployed Apps Script "/exec" URL yahan daalo:
+        const GAS_PROXY_URL = "https://script.google.com/macros/s/AKfycbyyiNp1BjxktFoq7LRXrCH6T-hCT6GeOUzPaUHRYX_CfVKUisQE_eMNxri0epcHCuHD/exec";
 
         let editorZoom = 80;
         function setEditorZoom(value) {
@@ -1229,10 +1232,17 @@
                     continue;
                 }
                 try {
-                    const base64 = await fileToBase64(file);
-                    const previewUrl = URL.createObjectURL(file);
+                    const { blob, base64, mimeType } = await compressImage(file);
+                    const previewUrl = URL.createObjectURL(blob);
                     const id = 'img_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-                    uploadedFiles.push({ id, file, base64, previewUrl, name: file.name, size: (file.size / 1024).toFixed(1) + ' KB' });
+                    uploadedFiles.push({
+                        id,
+                        file: new File([blob], file.name, { type: mimeType }),
+                        base64,
+                        previewUrl,
+                        name: file.name,
+                        size: (blob.size / 1024).toFixed(1) + ' KB'
+                    });
                     added++;
                 } catch (err) {
                     console.error('Error reading file:', err);
@@ -1249,6 +1259,50 @@
                 reader.readAsDataURL(file);
                 reader.onload = () => resolve(String(reader.result).split(',')[1]);
                 reader.onerror = reject;
+            });
+        }
+
+        // Resizes + re-compresses an image via canvas before it's used anywhere
+        // (AI scan upload or editor insert). Cuts payload size sent to Gemini
+        // and keeps exported PDF/DOCX files smaller.
+        // Returns { blob, dataUrl, base64, mimeType }.
+        function compressImage(file, { maxWidth = 1600, maxHeight = 2000, quality = 0.8 } = {}) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                const objectUrl = URL.createObjectURL(file);
+                img.onload = () => {
+                    URL.revokeObjectURL(objectUrl);
+                    let { width, height } = img;
+                    const scale = Math.min(1, maxWidth / width, maxHeight / height);
+                    width = Math.max(1, Math.round(width * scale));
+                    height = Math.max(1, Math.round(height * scale));
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // PNG with transparency stays PNG; everything else becomes JPEG for smaller size.
+                    const outMime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+                    canvas.toBlob((blob) => {
+                        if (!blob) { reject(new Error('Compression failed')); return; }
+                        const dataUrlReader = new FileReader();
+                        dataUrlReader.onload = () => {
+                            const dataUrl = String(dataUrlReader.result);
+                            resolve({
+                                blob,
+                                dataUrl,
+                                base64: dataUrl.split(',')[1],
+                                mimeType: outMime
+                            });
+                        };
+                        dataUrlReader.onerror = reject;
+                        dataUrlReader.readAsDataURL(blob);
+                    }, outMime, outMime === 'image/jpeg' ? quality : undefined);
+                };
+                img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Could not load image')); };
+                img.src = objectUrl;
             });
         }
 
@@ -1531,15 +1585,7 @@ Rules:
                 }
             };
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-
-            const response = await fetchWithRetry(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const result = await response.json();
+            const result = await callGeminiProxy(payload);
             const textResponse = result?.candidates?.[0]?.content?.parts?.[0]?.text;
 
             if (!textResponse) {
@@ -1554,6 +1600,23 @@ Rules:
             }
 
             return sanitizeEditorHtml(cleanHtml);
+        }
+
+        // Calls the Google Apps Script proxy instead of Gemini directly.
+        // Body is sent as text/plain to avoid a CORS preflight (Apps Script
+        // web apps don't handle OPTIONS requests), but the content is still JSON.
+        async function callGeminiProxy(payload) {
+            if (!GAS_PROXY_URL || GAS_PROXY_URL.includes('PASTE_YOUR')) {
+                throw new Error('AI proxy URL not configured. Set GAS_PROXY_URL to your deployed Apps Script /exec URL.');
+            }
+            const response = await fetchWithRetry(GAS_PROXY_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ payload })
+            });
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+            return data;
         }
 
         // Exponential backoff fetcher
@@ -1608,7 +1671,7 @@ Rules:
             e.target.value = '';
             if (!files.length) return;
             for (const file of files) {
-                const dataUrl = await fileToDataUrl(file);
+                const { dataUrl } = await compressImage(file);
                 insertImageIntoDocument(dataUrl, file.name, savedEditorRange);
             }
             updateStats();
@@ -2079,14 +2142,7 @@ Rules:
                         systemInstruction: { parts: [{ text: systemPrompt }] }
                     };
 
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-                    const res = await fetchWithRetry(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    const data = await res.json();
+                    const data = await callGeminiProxy(payload);
                     let output = data?.candidates?.[0]?.content?.parts?.[0]?.text;
                     if (!output) continue;
                     output = output.trim();
