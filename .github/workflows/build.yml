@@ -1,1 +1,113 @@
+name: Build Scanly AI APK
 
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android Build Tools 34.0.0
+        run: |
+          export ANDROID_HOME=$ANDROID_SDK_ROOT
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Install Gradle 8.0
+        run: |
+          sudo rm -rf /usr/share/gradle-*
+          wget -q https://services.gradle.org/distributions/gradle-8.0-bin.zip
+          unzip -q gradle-8.0-bin.zip
+          sudo mv gradle-8.0 /opt/gradle-8.0
+          sudo ln -sf /opt/gradle-8.0/bin/gradle /usr/local/bin/gradle
+          gradle --version
+
+      - name: Install Cordova
+        run: npm install -g cordova
+
+      - name: Setup Scanly AI Cordova Project
+        run: |
+          cordova create scanly-ai com.kareostudio.scanlyai "Scanly AI"
+
+          cp config.xml scanly-ai/config.xml
+
+          mkdir -p scanly-ai/res
+          if [ -f icon.png ]; then
+            cp icon.png scanly-ai/res/icon.png
+          else
+            echo "icon.png not found - build will use Cordova default icon"
+          fi
+
+          cp index.html scanly-ai/www/index.html
+          [ -f main.html ] && cp main.html scanly-ai/www/main.html || true
+
+          cd scanly-ai
+
+          cordova platform add android@13.0.0
+
+          cordova plugin add cordova-plugin-inappbrowser
+          cordova plugin add cordova-plugin-network-information
+          cordova plugin add cordova-plugin-statusbar
+          cordova plugin add cordova-plugin-file
+          cordova plugin add cordova-plugin-filepath
+          cordova plugin add cordova-plugin-filechooser
+          cordova plugin add cordova-plugin-android-permissions
+
+          echo "=== Scanly AI www files ==="
+          ls -la www/
+
+      - name: Build Debug APK
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+        run: |
+          cd scanly-ai
+          cordova build android --debug
+
+      - name: Upload Scanly AI APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Scanly-AI-APK
+          path: scanly-ai/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload Scanly AI Release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: scanly-ai/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: v1.0.0-${{ github.run_number }}
+          name: Scanly AI v1.0.0 Build ${{ github.run_number }}
+          body: |
+            ## Scanly AI
+            - App Name: Scanly AI
+            - Package: com.kareostudio.scanlyai
+            - Developer: Kareo Studio
+            - Target SDK: 34 (Android 14)
+            - Minimum SDK: 24 (Android 7.0)
+            - Build Date: ${{ github.event.head_commit.timestamp }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
