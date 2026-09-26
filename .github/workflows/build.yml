@@ -63,6 +63,12 @@ jobs:
             echo "icon.png not found - build will use Cordova default icon"
           fi
 
+          if [ -f splash.png ]; then
+            cp splash.png scanly-ai/res/splash.png
+          else
+            echo "splash.png not found - build will use the configured splash asset if available"
+          fi
+
           cp index.html scanly-ai/www/index.html
           [ -f main.html ] && cp main.html scanly-ai/www/main.html || true
 
@@ -76,6 +82,17 @@ jobs:
           cordova plugin add cordova-plugin-filepath
           cordova plugin add cordova-plugin-filechooser
           cordova plugin add cordova-plugin-android-permissions
+
+          # Native Android bridge: saves generated PDFs to Downloads/Scanly AI
+          if [ -f ../scanly-storage-plugin.zip ]; then
+            rm -rf /tmp/scanly-storage-plugin
+            mkdir -p /tmp/scanly-storage-plugin
+            unzip -q ../scanly-storage-plugin.zip -d /tmp/scanly-storage-plugin
+            cordova plugin add /tmp/scanly-storage-plugin/scanly_storage_plugin
+          else
+            echo "scanly-storage-plugin.zip not found - PDF saving bridge cannot be installed"
+            exit 1
+          fi
 
           echo "=== Scanly AI www files ==="
           ls -la www/
