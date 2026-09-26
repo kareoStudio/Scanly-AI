@@ -1614,7 +1614,16 @@ Rules:
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({ payload })
             });
-            const data = await response.json();
+            const rawText = await response.text();
+            let data;
+            try {
+                data = JSON.parse(rawText);
+            } catch (e) {
+                // Server didn't return JSON (likely an Apps Script HTML error page).
+                // Surface the actual message instead of a generic parse error.
+                console.error('Non-JSON response from proxy:', rawText.slice(0, 500));
+                throw new Error('Proxy did not return JSON: ' + rawText.replace(/<[^>]+>/g, ' ').trim().slice(0, 150));
+            }
             if (data.error) throw new Error(data.error);
             return data;
         }
